@@ -1,7 +1,7 @@
 import re
+import requests
 from itertools import takewhile
 
-import requests
 from bs4 import BeautifulSoup
 import psycopg2
 
@@ -12,7 +12,24 @@ neighboursPageURL = 'https://en.wikipedia.org/wiki/List_of_countries_and_territo
 
 
 class State:
+    """Represents information about a state."""
+
     def __init__(self, country_info):
+        """Initializes a State object with information about a country.
+
+               Args:
+                   country_info (dict): A dictionary containing information about the country.
+
+               Attributes:
+                   name (str): The name of the state.
+                   capital (str): The capital city of the state.
+                   population (int): The population of the state.
+                   population_density (float): The population density of the state.
+                   area (int): The total area of the state.
+                   language (str): The primary language spoken in the state.
+                   time_zone (str): The time zone of the state.
+                   political_regime (str): The political regime of the state.
+               """
         self.name = None
         self.capital = None
         self.population = 0
@@ -41,6 +58,7 @@ class State:
                 self.political_regime = value
 
     def print(self):
+        """Prints the details of the state."""
         print(f'State:{self.name},'
               f' Capital : {self.capital},'
               f' Population : {self.population},'
@@ -52,6 +70,17 @@ class State:
 
 
 def fetch_states(conn):
+    """Fetches states' information from a Wikipedia page and inserts it into the database.
+
+      Args:
+          conn: A psycopg2 database connection object.
+
+      Raises:
+          Exception: If unable to access the Wikipedia list of countries.
+
+      Returns:
+          None
+      """
     url = indexPageURL
     response = requests.get(url)
 
@@ -91,6 +120,17 @@ def fetch_states(conn):
 
 
 def fetch_state_neighbours(conn):
+    """Fetches neighbouring countries' information from Wikipedia and updates the database with the data.
+
+       Args:
+           conn: A psycopg2 database connection object.
+
+       Raises:
+           Exception: If unable to access the Wikipedia list of countries.
+
+       Returns:
+           dict: A dictionary containing states and their respective neighbouring countries.
+       """
     url = neighboursPageURL
     response = requests.get(url)
 
@@ -106,7 +146,7 @@ def fetch_state_neighbours(conn):
     for row in table.find_all('tr')[2:]:
         columns = row.find_all('td')
         state_letters = takewhile(lambda x: not x.isdigit() and not is_character_parantheses(x) and x != ',',
-                                    columns[0].text.strip().lower())
+                                  columns[0].text.strip().lower())
         state_name = ''.join(state_letters)
         neighbours_data = columns[5].find_all('a')
 
@@ -135,13 +175,41 @@ def fetch_state_neighbours(conn):
 
     return states_and_neighbours
 
+
 def is_character_part_of_number(x):
+    """Checks if a character is part of a numerical representation.
+
+       Args:
+           x (str): The character to be checked.
+
+       Returns:
+           bool: True if the character is a digit, comma, or period; otherwise, False.
+       """
     return x.isdigit() or x == ',' or x == '.'
 
+
 def is_character_parantheses(x):
+    """Checks if a character is a type of parentheses or brackets.
+
+      Args:
+          x (str): The character to be checked.
+
+      Returns:
+          bool: True if the character is one of the following: '(', ')', '[', ']', '{', or '}'; otherwise, False.
+      """
     return x == '(' or x == ')' or x == ']' or x == '[' or x == '}' or x == '{'
 
+
 def fetch_state_info(state_name, state_url):
+    """Fetches detailed information about a state from a Wikipedia page.
+
+    Args:
+        state_name (str): The name of the state.
+        state_url (str): The URL of the state's Wikipedia page.
+
+    Returns:
+        State: An instance of the State class containing information about the state.
+    """
     response = requests.get(state_url)
     country_info = {'Name': state_name}
 
@@ -156,7 +224,8 @@ def fetch_state_info(state_name, state_url):
                 if header:
                     header_text = header.get_text(strip=True)
                     if 'capital' in header_text.lower():
-                        capital_letters = takewhile(lambda x: not x.isdigit() and not is_character_parantheses(x), row.find('td').get_text(strip=True))
+                        capital_letters = takewhile(lambda x: not x.isdigit() and not is_character_parantheses(x),
+                                                    row.find('td').get_text(strip=True))
                         country_info['Capital'] = ''.join(capital_letters)
                         continue
 
@@ -191,19 +260,22 @@ def fetch_state_info(state_name, state_url):
                         continue
 
                     if 'time zone' in header_text.lower():
-                        time_zone = takewhile(lambda x: not is_character_parantheses(x) and x != ' ' and x != ';' and x != ',', row.find('td').get_text(strip=True))
+                        time_zone = takewhile(
+                            lambda x: not is_character_parantheses(x) and x != ' ' and x != ';' and x != ',',
+                            row.find('td').get_text(strip=True))
                         country_info['Time zone'] = ''.join(time_zone)
                         continue
 
                     if header_text.lower() == 'government':
-                        political_regime = takewhile(lambda x: not x.isdigit() and not is_character_parantheses(x), row.find('td').get_text(strip=False))
+                        political_regime = takewhile(lambda x: not x.isdigit() and not is_character_parantheses(x),
+                                                     row.find('td').get_text(strip=False))
                         country_info['Political regime'] = ''.join(political_regime)
 
     return State(country_info)
 
 
 def main():
-  #  fetch_states(connect_to_database())
+    fetch_states(connect_to_database())
     fetch_state_neighbours(connect_to_database())
 
 
